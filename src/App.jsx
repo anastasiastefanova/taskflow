@@ -1,6 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
 
+// ─── MOBILE HOOK ──────────────────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return isMobile;
+}
+
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
@@ -628,6 +639,7 @@ function StatsView({ tasks }) {
 // ─── APP ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const isMobile = useIsMobile();
   const [tasks,   setTasks]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]  = useState(null);
@@ -635,6 +647,7 @@ export default function App() {
   const [view,    setView]   = useState("board");
   const [sortBy,  setSortBy] = useState("created_desc");
   const [filter,  setFilter] = useState({ status: "all", priority: "all", search: "", tag: "" });
+  const [mobileStatus, setMobileStatus] = useState("todo"); // active column on mobile board
   const dragId = useRef(null);
 
   // ── Load all tasks on mount ──────────────────────────────────────────────
@@ -737,8 +750,9 @@ export default function App() {
   };
 
   const sel = () => ({ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 14px", color: "#94a3b8", fontSize: 12, outline: "none", fontFamily: "inherit", cursor: "pointer" });
+  const pad = isMobile ? "0 12px 100px" : "0 28px 32px";
 
-  // ── Loading / error screens ───────────────────────────────────────────────
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
     <div style={{ minHeight: "100vh", background: "#020817", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "monospace" }}>
       <div style={{ textAlign: "center" }}>
@@ -757,91 +771,94 @@ export default function App() {
         ::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.4)}
         select option{background:#1e293b}
+        input, select, button { -webkit-tap-highlight-color: transparent; }
       `}</style>
 
       {/* Error banner */}
       {error && (
-        <div style={{ background: "#2d0a0a", borderBottom: "1px solid #7f1d1d", padding: "10px 28px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: "#f87171", fontSize: 12 }}>⚠ Ошибка: {error}</span>
+        <div style={{ background: "#2d0a0a", borderBottom: "1px solid #7f1d1d", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: "#f87171", fontSize: 12 }}>⚠ {error}</span>
           <button onClick={() => setError(null)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 16 }}>✕</button>
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ borderBottom: "1px solid #1e293b", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#020817", position: "sticky", top: 0, zIndex: 50 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 32, height: 32, background: "linear-gradient(135deg,#0ea5e9,#6366f1)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>◈</div>
+      {/* ── HEADER ── */}
+      <div style={{ borderBottom: "1px solid #1e293b", padding: isMobile ? "12px 16px" : "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#020817", position: "sticky", top: 0, zIndex: 50 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 30, height: 30, background: "linear-gradient(135deg,#0ea5e9,#6366f1)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>◈</div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2 }}>TASKFLOW</div>
-            <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>УПРАВЛЕНИЕ ПРОЕКТАМИ</div>
+            <div style={{ fontSize: isMobile ? 12 : 14, fontWeight: 700, letterSpacing: 2 }}>TASKFLOW</div>
+            {!isMobile && <div style={{ fontSize: 9, color: "#475569", letterSpacing: 1 }}>УПРАВЛЕНИЕ ПРОЕКТАМИ</div>}
           </div>
-          {/* Live indicator */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 4 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
             <span style={{ fontSize: 9, color: "#4ade80", letterSpacing: 1 }}>LIVE</span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {[["board","⊞ ДОСКА"], ["list","≡ СПИСОК"], ["stats","◎ СТАТИСТИКА"]].map(([v, label]) => (
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {/* Desktop nav buttons — hidden on mobile (bottom nav used instead) */}
+          {!isMobile && [["board","⊞ ДОСКА"], ["list","≡ СПИСОК"], ["stats","◎ СТАТИСТИКА"]].map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               style={{ background: view === v ? "#1e293b" : "none", border: `1px solid ${view === v ? "#334155" : "transparent"}`, borderRadius: 6, padding: "6px 12px", color: view === v ? "#f8fafc" : "#475569", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>
               {label}
             </button>
           ))}
           <button onClick={() => setModal({ tags: [], comments: [], history: [], createdAt: new Date().toISOString() })}
-            style={{ background: "#0ea5e9", border: "none", borderRadius: 8, padding: "8px 16px", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", letterSpacing: 0.5 }}>
-            + ЗАДАЧА
+            style={{ background: "#0ea5e9", border: "none", borderRadius: 8, padding: isMobile ? "8px 14px" : "8px 16px", color: "#fff", cursor: "pointer", fontSize: isMobile ? 18 : 12, fontWeight: 700, fontFamily: "inherit", letterSpacing: 0.5, lineHeight: 1 }}>
+            {isMobile ? "+" : "+ ЗАДАЧА"}
           </button>
         </div>
       </div>
 
-      {/* Stats bar — hidden on stats view */}
+      {/* ── STATS BAR ── */}
       {view !== "stats" && (
-      <div style={{ padding: "18px 28px 0", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
-        {[
-          { label: "Всего",      value: stats.total,   color: "#94a3b8" },
-          { label: "Готово",     value: stats.done,    color: "#4ade80" },
-          { label: "Просрочено", value: stats.overdue, color: "#f87171" },
-          { label: "Сегодня",    value: stats.today,   color: "#fb923c" },
-        ].map(s => (
-          <div key={s.label} style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 10, padding: "12px 16px" }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
-            <div style={{ fontSize: 9, color: "#475569", marginTop: 4, letterSpacing: 1, textTransform: "uppercase" }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
+        <div style={{ padding: isMobile ? "12px 12px 0" : "18px 28px 0", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: isMobile ? 6 : 10 }}>
+          {[
+            { label: "Всего",      value: stats.total,   color: "#94a3b8" },
+            { label: "Готово",     value: stats.done,    color: "#4ade80" },
+            { label: "Просрочено", value: stats.overdue, color: "#f87171" },
+            { label: "Сегодня",    value: stats.today,   color: "#fb923c" },
+          ].map(s => (
+            <div key={s.label} style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 10, padding: isMobile ? "10px 10px" : "12px 16px" }}>
+              <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: isMobile ? 8 : 9, color: "#475569", marginTop: 4, letterSpacing: 1, textTransform: "uppercase" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
       )}
 
-      {/* Filters — hidden on stats view */}
+      {/* ── FILTERS ── */}
       {view !== "stats" && (
-      <div style={{ padding: "14px 28px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <input placeholder="Поиск…" value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))}
-          style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 14px", color: "#f8fafc", fontSize: 12, outline: "none", fontFamily: "inherit", width: 160 }} />
-        <select value={filter.status} onChange={e => setFilter(f => ({ ...f, status: e.target.value }))} style={sel()}>
-          <option value="all">Все статусы</option>
-          {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <select value={filter.priority} onChange={e => setFilter(f => ({ ...f, priority: e.target.value }))} style={sel()}>
-          <option value="all">Все приоритеты</option>
-          {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <select value={filter.tag} onChange={e => setFilter(f => ({ ...f, tag: e.target.value }))} style={sel()}>
-          <option value="">Все теги</option>
-          {allTags.map(t => <option key={t} value={t}>#{t}</option>)}
-        </select>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={sel()}>
-          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <span style={{ color: "#334155", fontSize: 11, marginLeft: "auto" }}>{filtered.length} / {tasks.length}</span>
-      </div>
+        <div style={{ padding: isMobile ? "10px 12px" : "14px 28px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <input placeholder="Поиск…" value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))}
+            style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 12px", color: "#f8fafc", fontSize: 12, outline: "none", fontFamily: "inherit", flex: 1, minWidth: 100 }} />
+          <select value={filter.status} onChange={e => setFilter(f => ({ ...f, status: e.target.value }))} style={{ ...sel(), fontSize: 11, padding: "8px 10px" }}>
+            <option value="all">Все статусы</option>
+            {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          {!isMobile && <>
+            <select value={filter.priority} onChange={e => setFilter(f => ({ ...f, priority: e.target.value }))} style={sel()}>
+              <option value="all">Все приоритеты</option>
+              {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+            <select value={filter.tag} onChange={e => setFilter(f => ({ ...f, tag: e.target.value }))} style={sel()}>
+              <option value="">Все теги</option>
+              {allTags.map(t => <option key={t} value={t}>#{t}</option>)}
+            </select>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={sel()}>
+              {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </>}
+          <span style={{ color: "#334155", fontSize: 11, marginLeft: "auto" }}>{filtered.length}/{tasks.length}</span>
+        </div>
       )}
 
-      {/* Stats view */}
+      {/* ── STATS VIEW ── */}
       {view === "stats" && <StatsView tasks={tasks} />}
 
-      {/* Board */}
-      {view === "board" && (
-        <div style={{ padding: "0 28px 32px", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, alignItems: "start" }}>
+      {/* ── BOARD ── */}
+      {view === "board" && !isMobile && (
+        <div style={{ padding: pad, display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, alignItems: "start" }}>
           {Object.keys(STATUS_CONFIG).map(status => (
             <DropColumn key={status} status={status}
               tasks={filtered.filter(t => t.status === status)}
@@ -851,9 +868,36 @@ export default function App() {
         </div>
       )}
 
-      {/* List */}
-      {view === "list" && (
-        <div style={{ padding: "0 28px 32px" }}>
+      {/* ── MOBILE BOARD: one column at a time with tab switcher ── */}
+      {view === "board" && isMobile && (
+        <div style={{ padding: "0 0 100px" }}>
+          {/* Column tab switcher */}
+          <div style={{ display: "flex", overflowX: "auto", borderBottom: "1px solid #1e293b", padding: "0 12px" }}>
+            {Object.entries(STATUS_CONFIG).map(([k, sc]) => {
+              const count = filtered.filter(t => t.status === k).length;
+              return (
+                <button key={k} onClick={() => setMobileStatus(k)}
+                  style={{ background: "none", border: "none", borderBottom: mobileStatus === k ? `2px solid ${sc.color}` : "2px solid transparent", color: mobileStatus === k ? sc.color : "#475569", padding: "10px 14px", cursor: "pointer", fontSize: 11, fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {sc.label} <span style={{ fontSize: 10, opacity: 0.7 }}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* Active column cards */}
+          <div style={{ padding: "12px 12px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+            {filtered.filter(t => t.status === mobileStatus).map(t => (
+              <TaskCard key={t.id} task={t} onClick={setModal} onDelete={deleteTask} onDragStart={() => {}} />
+            ))}
+            {filtered.filter(t => t.status === mobileStatus).length === 0 && (
+              <div style={{ border: "1px dashed #1e293b", borderRadius: 12, padding: 32, textAlign: "center", color: "#334155", fontSize: 13 }}>Нет задач</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── LIST ── */}
+      {view === "list" && !isMobile && (
+        <div style={{ padding: pad }}>
           <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12, overflow: "hidden" }}>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 120px 100px 160px 100px 36px", padding: "10px 18px", borderBottom: "1px solid #1e293b", color: "#475569", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase" }}>
               {["Задача", "Проект", "Статус", "Приоритет", "Дедлайн", "Ответственный", ""].map((h, i) => <div key={i}>{h}</div>)}
@@ -892,6 +936,33 @@ export default function App() {
             })}
             {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "#334155", fontSize: 14 }}>Задачи не найдены</div>}
           </div>
+        </div>
+      )}
+
+      {/* ── MOBILE LIST: card-based ── */}
+      {view === "list" && isMobile && (
+        <div style={{ padding: "12px 12px 100px", display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map(t => (
+            <TaskCard key={t.id} task={t} onClick={setModal} onDelete={deleteTask} onDragStart={() => {}} />
+          ))}
+          {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "#334155", fontSize: 14 }}>Задачи не найдены</div>}
+        </div>
+      )}
+
+      {/* ── MOBILE BOTTOM NAV ── */}
+      {isMobile && (
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0f172a", borderTop: "1px solid #1e293b", display: "flex", zIndex: 50 }}>
+          {[
+            ["board",  "⊞", "Доска"],
+            ["list",   "≡", "Список"],
+            ["stats",  "◎", "Стат."],
+          ].map(([v, icon, label]) => (
+            <button key={v} onClick={() => setView(v)}
+              style={{ flex: 1, background: "none", border: "none", padding: "12px 0 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: view === v ? "#0ea5e9" : "#475569", fontFamily: "inherit" }}>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
+              <span style={{ fontSize: 9, letterSpacing: 0.5 }}>{label}</span>
+            </button>
+          ))}
         </div>
       )}
 
